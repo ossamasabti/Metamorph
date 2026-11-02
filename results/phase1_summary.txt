@@ -1,0 +1,26 @@
+Phase 1 summary (true parameters, dose 100 %ID)
+
+Amounts in %ID (bare + coated):
+t (h)        blood      lung     liver    spleen    kidney     brain   A_renal A_hepatic      sum
+  0.083     85.999     2.272     3.443     0.863     1.514     0.074     5.828     0.007  100.0000
+  0.250     63.699     5.646    10.393     2.614     3.764     0.179    13.640     0.065  100.0000
+  0.500     41.059     8.595    19.429     4.920     5.730     0.269    19.745     0.254  100.0000
+  1.000     18.601    10.352    30.900     7.947     6.901     0.344    24.054     0.899  100.0000
+  4.000      3.275     4.832    41.663    12.029     3.221     0.402    27.792     6.787  100.0000
+  8.000      1.607     1.703    38.294    12.907     1.135     0.393    29.093    14.869  100.0000
+ 24.000      0.657     0.424    19.472    11.255     0.283     0.286    30.367    37.256  100.0000
+
+Max |sum - 100| over 481 times, diffrax: 2.84e-14
+Max |sum - 100| over 481 times, SciPy:   7.11e-14
+Max abs error vs exact, diffrax: 5.30e-08 %ID
+Max abs error vs exact, SciPy:   7.08e-10 %ID
+Max abs difference diffrax vs SciPy: 5.30e-08 %ID
+Wall time (481 outputs): diffrax 5.6 ms (after JIT), SciPy 59.5 ms
+
+Decay rates of the system (-eigenvalues of A, 1/h), excluding the two zero
+eigenvalues of the cumulative states:
+  0.0195, 0.0287, 0.0300, 0.0300, 0.0587, 0.0756, 0.3609, 0.4150, 0.5000, 0.5000, 2.1738, 3.4008
+  stiffness ratio (max / min) = 174
+
+Coated fraction of blood content at t = 1 h: 0.716
+Brain content at t_end = 24 h: 0.2863 %ID (bare 0.1931, coated 0.0932)

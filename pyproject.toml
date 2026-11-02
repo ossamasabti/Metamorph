@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "metamorph"
+version = "0.1.0"
+description = "Bayesian calibration and counterfactual design of a multi-compartment model for nanoparticle transport, where the particle changes state as it circulates."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "jax>=0.4.30",
+    "diffrax>=0.6",
+    "numpyro>=0.15",
+    "arviz>=0.18",
+    "matplotlib>=3.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
