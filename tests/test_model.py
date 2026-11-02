@@ -92,3 +92,11 @@ def test_no_coated_particles_without_coating() -> None:
     ys = np.asarray(simulate(params, np.array([1.0, T_END])))
     coated = ys[:, [1] + list(range(7, 12))]
     np.testing.assert_allclose(coated, 0.0, atol=1e-12)
+
+
+def test_precoated_injection_conserves_mass_and_stays_coated() -> None:
+    """Coating is irreversible: with a fully coated dose, bare states stay at zero."""
+    ys = np.asarray(simulate(TRUE_PARAMS, np.array([0.5, 4.0, T_END]), coated_fraction=1.0))
+    np.testing.assert_allclose(ys.sum(axis=1), DEFAULT_DOSE, rtol=1e-8)
+    bare = ys[:, [0] + list(range(2, 7)) + [IDX_A_RENAL]]
+    np.testing.assert_allclose(bare, 0.0, atol=1e-12)

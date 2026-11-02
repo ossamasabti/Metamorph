@@ -3,8 +3,8 @@
 Bayesian calibration and counterfactual design of a multi-compartment model for
 nanoparticle transport, where the particle changes state as it circulates.
 
-Status: work in progress (phases 1 to 3 of 6: forward model, synthetic data,
-Bayesian calibration). The full README (motivation, results, references) is
+Status: work in progress (phases 1 to 4 of 6: forward model, synthetic data,
+Bayesian calibration, identifiability and sensitivity). The full README (motivation, results, references) is
 written in phase 6.
 
 ## Installation
@@ -18,6 +18,7 @@ python scripts/phase1_forward.py
 python scripts/phase2_synthetic_data.py
 python scripts/phase3_calibration.py     # about 10 min on a laptop CPU
 python scripts/phase3_mass_matrix.py     # optional, about 7 min
+python scripts/phase4_identifiability.py # about 10 min
 ```
 
 ## Model
@@ -105,6 +106,39 @@ transitions, max R-hat 1.000, min bulk ESS 2450 (`results/phase3_summary.txt`).
 Well determined: clearance rates, k_coat, uptake into lung, kidney and brain,
 both return rates. Poorly determined: m_brain, m_RES, k_in_liver, k_in_spleen,
 because only bare + coated totals are observed.
+
+## Identifiability and sensitivity (phase 4)
+
+Numbers from `results/phase4_summary.txt`.
+
+**Posterior correlations (log space).** The strongest are k_in_liver with m_RES
+(r = -0.97) and k_in_brain with m_brain (r = -0.84): because tissues are first
+sampled at 1 h, when most circulating particles are already coated, the data
+determine the products k_in * m but not each factor. k_coat and CL_renal are
+correlated (r = +0.79) through the urinary plateau. The anticipated
+k_out_slow / CL_liver non-identifiability did not materialize (r = +0.29),
+because k_out_slow is shared with spleen and brain, which have no clearance.
+
+**Which data would fix it.** A Laplace (Fisher information) approximation,
+validated against NUTS on the actual design (median difference in posterior
+standard deviation 4 %), predicts the 90 % credible interval width factor
+(upper / lower) under alternative designs:
+
+| Parameter | Current | + feces | + blood bare/coated split | + early tissue times | + pre-coated arm |
+|---|---|---|---|---|---|
+| k_coat | 1.84 | 1.65 | 1.12 | 1.65 | 1.78 |
+| k_in_liver | 3.46 | 1.62 | 1.60 | 1.45 | 2.80 |
+| m_RES | 4.27 | 1.89 | 1.84 | 1.72 | 2.89 |
+| m_brain | 6.10 | 5.85 | 5.67 | 3.08 | 1.64 |
+
+Early information on bare-particle uptake fixes m_RES; only a second arm with
+pre-coated particles fixes m_brain.
+
+**Global sensitivity.** Sobol indices of log10 amounts at 24 h, inputs varied
+over the prior (57,344 model runs). Brain: k_in_brain (S1 0.50), k_out_slow
+(0.17), then m_brain, k_in_liver and CL_renal (about 0.06 each); k_coat acts
+only through interactions (S1 about 0, ST 0.03). Liver: CL_liver (S1 0.57),
+k_in_liver (0.11), CL_renal (0.08).
 
 ## License
 

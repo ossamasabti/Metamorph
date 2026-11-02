@@ -525,3 +525,257 @@ R : La bande foncée est l'incertitude épistémique sur la courbe moyenne, due 
 paramètres. La bande claire ajoute le bruit d'observation : c'est ce qu'on
 s'attend à mesurer lors d'une nouvelle expérience. Les données doivent se
 trouver dans la bande claire, pas forcément dans la foncée.
+
+---
+
+## Phase 4 : identifiabilité et sensibilité
+
+Tous les chiffres viennent de `results/phase4_summary.txt`
+(`scripts/phase4_identifiability.py`).
+
+### 4.1 Deux notions à ne pas confondre
+
+- **Identifiabilité structurelle** : avec des données parfaites (sans bruit, en
+  continu), peut-on retrouver un paramètre de façon unique ? C'est une propriété
+  du modèle et de ce qu'on observe.
+- **Identifiabilité pratique** : avec nos données réelles (rares, bruitées), le
+  paramètre est-il bien contraint ? C'est ce qu'on lit dans le posterior. Ici,
+  tous les paramètres sont probablement identifiables structurellement, mais
+  certains le sont mal en pratique.
+
+En bayésien, un paramètre mal identifié n'empêche pas l'inférence : le posterior
+reste simplement large, ou suit une « crête » (une combinaison de paramètres
+bien déterminée, les autres directions libres). Le prior évite que le posterior
+soit impropre.
+
+### 4.2 Corrélations du posterior (en espace log)
+
+| Paire | r | Explication |
+|---|---|---|
+| k_in_liver, m_RES | -0.97 | Captation hépatique = k_in_liver (B_b + m_RES B_c). Après 30 min, presque tout le sang est coaté, donc le foie ne voit que le produit k_in_liver * m_RES. Les tissus ne sont prélevés qu'à partir de 1 h : le produit est connu, pas chaque facteur. En log, log k_in_liver + log m_RES = constante, d'où une crête de pente -1. |
+| k_in_liver, k_in_spleen | +0.97 | Conséquence du partage de m_RES : si m_RES monte, k_in_liver et k_in_spleen doivent baisser ensemble. |
+| k_in_spleen, m_RES | -0.95 | Même produit que pour le foie. |
+| k_in_brain, m_brain | -0.84 | Même logique de produit, mais plus faible : 2/3 du contenu cérébral est nu, ce qui fixe en partie k_in_brain seul. |
+| k_coat, CL_renal | +0.79 | Le plateau urinaire fixe le rapport CL_renal / (k_coat + ...) (phase 2). Les points précoces empêchent la crête d'être parfaite. |
+| k_in_lung ou k_in_kidney, k_out_fast | +0.79 | Tissus d'échange : ils atteignent vite un quasi-équilibre avec le sang, T = (k_in / k_out) B. Seul le rapport (coefficient de partage) est bien déterminé. |
+| k_out_slow, CL_liver | +0.29 | Faible. Voir ci-dessous. |
+
+**Une prédiction de la phase 1 qui s'est révélée fausse.** J'avais annoncé une
+forte non-identifiabilité entre k_out_slow et CL_liver, car le contenu du foie
+dépend surtout de leur somme. La corrélation n'est que de +0.29, et de signe
+opposé à celui attendu (une somme fixée donnerait une corrélation négative).
+L'explication : k_out_slow est partagé avec la rate et le cerveau, qui n'ont pas
+de clairance. Leur décroissance lente fixe k_out_slow, et le foie fixe ensuite
+CL_liver. Le regroupement des paramètres, choisi pour réduire leur nombre, a donc
+aussi supprimé cette non-identifiabilité. C'est bon à dire en entretien : on a
+testé une hypothèse et on l'a corrigée au vu des résultats.
+
+### 4.3 Contraction : combien les données ont appris
+
+Contraction = 1 - var_posterior / var_prior (en log). 1 : les données ont tout
+appris ; 0 : le posterior est égal au prior.
+
+- Plus de 0.96 : CL_renal, CL_liver, k_in_lung, k_in_kidney, k_out_fast,
+  k_out_slow, k_coat, k_in_brain.
+- 0.88 : k_in_liver, k_in_spleen.
+- 0.67 : m_RES.
+- 0.40 : m_brain. C'est le paramètre le moins appris : son posterior reste
+  proche du prior.
+
+### 4.4 Quelles données régleraient le problème ?
+
+**Méthode.** Relancer NUTS pour chaque plan d'expérience candidat coûterait
+10 min par plan. J'utilise à la place l'approximation de Laplace :
+
+```
+J = d log y / d z        (sensibilités, par différentiation automatique)
+Information de Fisher I = n_rep * J^T J / sigma^2
+Précision du posterior en z ≈ I + Identité   (le prior en z est N(0, I))
+Covariance ≈ (I + Identité)^-1
+```
+
+C'est l'approximation gaussienne du posterior autour de son mode. Elle est
+locale : elle suppose que le modèle est presque linéaire sur la largeur du
+posterior.
+
+**Validation.** Sur le plan réel, l'écart-type de Laplace et celui de NUTS
+diffèrent de 4 % en médiane et de 10 % au maximum (k_in_spleen). Laplace est un
+peu pessimiste pour k_in_liver, k_in_spleen et m_RES (crêtes légèrement
+courbées). L'approximation est donc assez bonne pour comparer des plans.
+
+**Résultats** (facteur de largeur de l'IC à 90 %, borne haute / borne basse) :
+
+| Paramètre | Actuel | + fèces | + sang nu/coaté séparé | + tissus précoces | + bras pré-coaté |
+|---|---|---|---|---|---|
+| k_coat | 1.84 | 1.65 | **1.12** | 1.65 | 1.78 |
+| k_in_liver | 3.46 | 1.62 | 1.60 | **1.45** | 2.80 |
+| m_RES | 4.27 | 1.89 | 1.84 | **1.72** | 2.89 |
+| m_brain | 6.10 | 5.85 | 5.67 | 3.08 | **1.64** |
+| CL_liver | 1.44 | **1.23** | 1.41 | 1.41 | 1.28 |
+
+Les plans :
+
+- **+ fèces** : élimination biliaire cumulée (A_hepatic) aux 7 instants denses ;
+- **+ sang nu/coaté séparé** : mesurer B_b et B_c séparément (par exemple en
+  isolant les particules couvertes de protéines) ;
+- **+ tissus précoces** : prélever aussi les organes à 5, 15 et 30 min (trois
+  groupes d'animaux en plus) ;
+- **+ bras pré-coaté** : un second groupe reçoit des particules pré-incubées dans
+  du plasma (100 % coatées), avec les mêmes prélèvements (sans urine, qui serait
+  vide).
+
+Lecture :
+
+1. **m_RES et k_in_liver** : ce qui manque, c'est la captation par le foie
+   **avant** le coating. Les tissus précoces donnent cette information
+   directement. Les fèces la donnent indirectement : les fèces précoces
+   mesurent CL_liver * (contenu hépatique précoce). J'ai ajouté le plan
+   « tissus précoces » précisément pour tester cette explication. Il donne le
+   même gain que les fèces, ce qui la confirme.
+2. **Le bras pré-coaté aide peu pour le foie** (3.46 vers 2.80). Il mesure très
+   bien le produit k_in_liver * m_RES, mais ce produit était déjà connu. Pour
+   séparer les deux facteurs, il faut la captation à l'état nu.
+3. **m_brain** : seul le bras pré-coaté le fixe vraiment (6.1 vers 1.64). Le
+   contenu cérébral est surtout nu, donc la part coatée est un petit signal dans
+   le bruit. Injecter des particules déjà coatées mesure directement
+   k_in_brain * m_brain, et le bras nu fixe k_in_brain.
+4. **k_coat** : séparer nu et coaté dans le sang observe directement la
+   conversion, et le facteur passe de 1.84 à 1.12.
+
+Message général : un paramètre est mal déterminé quand il n'agit qu'à travers un
+produit ou un rapport avec un autre. La bonne expérience est celle qui fait
+varier un facteur sans l'autre (un état sans l'autre, ou un instant où un seul
+mécanisme agit).
+
+### 4.5 Sensibilité globale : qu'est-ce qui décide où la particule finit ?
+
+**Question.** Quels paramètres expliquent la variation des quantités dans le
+cerveau et dans le foie à 24 h ?
+
+**Méthode : indices de Sobol (basés sur la variance).** Pour une sortie Y et des
+entrées indépendantes X_i :
+
+```
+S1_i = Var(E[Y | X_i]) / Var(Y)        effet de X_i seul (premier ordre)
+ST_i = E[Var(Y | X_-i)] / Var(Y)       effet total de X_i, interactions comprises
+```
+
+S1_i est la part de variance qu'on supprimerait en fixant X_i. ST_i est la part
+qui resterait si on fixait tout sauf X_i. ST_i - S1_i mesure les interactions.
+Somme des S1 égale à 1 : modèle additif.
+
+Estimateurs : Saltelli (2010) pour S1, Jansen (1999) pour ST, avec une suite de
+Sobol quasi aléatoire brouillée, N = 4096 échantillons de base, soit
+N (d + 2) = 57 344 simulations, et des intervalles bootstrap à 90 %. Testé sur
+deux fonctions dont les indices sont connus analytiquement
+(`tests/test_sensitivity.py`).
+
+**Choix à justifier :**
+
+- **Entrées = le prior** (log-normales indépendantes). Sobol suppose des entrées
+  indépendantes. Le posterior est corrélé (section 4.2), donc les indices de
+  Sobol classiques n'y sont pas valides. Et la question porte sur les
+  mécanismes, sur toute la gamme plausible des particules : le prior est la
+  bonne population.
+- **Sortie = log10 de la quantité.** Les quantités varient sur plusieurs ordres
+  de grandeur. En échelle linéaire, la variance serait dominée par quelques
+  tirages extrêmes.
+- **Pourquoi pas seulement une étude un par un (OAT) ?** Elle est locale (un seul
+  point), ignore les interactions, et ne tient pas compte de la gamme plausible
+  de chaque paramètre. Je l'ai calculée pour comparer : élasticités locales
+  d log(sortie) / d log(theta) au point moyen du posterior.
+
+**Résultats, cerveau à 24 h** (somme des S1 = 0.92, donc presque additif) :
+
+| Paramètre | S1 | ST |
+|---|---|---|
+| k_in_brain | 0.50 | 0.50 |
+| k_out_slow | 0.17 | 0.19 |
+| m_brain | 0.07 | 0.09 |
+| k_in_liver | 0.06 | 0.08 |
+| CL_renal | 0.06 | 0.08 |
+| m_RES | 0.04 | 0.06 |
+| k_coat | 0.00 | 0.03 |
+
+**Résultats, foie à 24 h** (somme des S1 = 0.88) : CL_liver (S1 0.57, ST 0.64),
+k_in_liver (0.11 ; 0.18), CL_renal (0.08 ; 0.10), k_in_spleen (0.05 ; 0.08),
+k_coat (0.04 ; 0.06).
+
+**Interprétation : ce qui décide où finit la particule.**
+
+- **Cerveau** : d'abord la perméabilité de la barrière (k_in_brain, 50 % de la
+  variance) et la rétention dans le cerveau (k_out_slow, 19 %). Ensuite la
+  compétition avec les « puits » qui vident le sang : captation par le foie et
+  la rate (k_in_liver, m_RES) et filtration rénale (CL_renal). Tout ce qui retire
+  la particule du sang plus vite réduit l'exposition du cerveau. Enfin l'effet
+  du coating sur la barrière (m_brain).
+- **k_coat a un S1 nul mais un ST de 0.03** : il n'agit que par interaction.
+  C'est logique : l'effet d'un coating plus rapide sur le cerveau dépend de
+  m_brain. Si m_brain vaut 1, le coating ne change rien pour le cerveau ; s'il
+  est petit, coater plus vite protège le cerveau. Le signe de l'effet dépend
+  d'un autre paramètre.
+- **Foie** : la quantité à 24 h dépend surtout de la vitesse à laquelle le foie
+  élimine (CL_liver), puis de la captation et de la compétition avec le rein et
+  la rate.
+
+**Local contre global.** Le classement des principaux paramètres est
+semblable, mais pas identique. Exemple : m_RES et k_in_liver ont la même
+élasticité locale sur le cerveau (-0.41), mais m_RES a un ST plus faible (0.06
+contre 0.08), car son prior est plus étroit (s = 0.7 contre 1). Pour un modèle
+presque linéaire en log, S_i est environ (e_i s_i)^2 / somme_j (e_j s_j)^2, où
+e_i est l'élasticité et s_i l'écart-type log du prior. Une élasticité forte
+compte peu si le paramètre varie peu en pratique.
+
+**Conséquence pour la phase 5.** Le diamètre d agit sur CL_renal et sur
+k_in_brain, deux leviers importants pour le cerveau. La propension au coating h
+agit sur k_coat, qui a un effet global faible et seulement par interaction. On
+peut donc prévoir que d sera un levier bien plus efficace que h pour réduire
+l'accumulation cérébrale.
+
+### 4.6 Questions probables en entretien
+
+**Q : Votre modèle est-il identifiable ?**
+R : En pratique, partiellement. Huit paramètres sur douze sont bien déterminés
+(contraction supérieure à 0.96). Quatre le sont mal : m_brain, m_RES,
+k_in_liver, k_in_spleen. La raison est structurelle dans le plan d'expérience :
+on observe des totaux nu + coaté, et les tissus ne sont prélevés qu'après que la
+plupart des particules sont coatées. Seuls les produits k_in * m sont alors
+déterminés.
+
+**Q : Quelle expérience proposeriez-vous ?**
+R : Cela dépend du paramètre visé. Pour m_RES : des prélèvements tissulaires
+précoces (ou la collecte des fèces). Pour m_brain : un second groupe recevant
+des particules pré-incubées dans du plasma. Pour k_coat : séparer nu et coaté
+dans le sang. Je l'ai quantifié par l'information de Fisher, validée contre NUTS
+(écart médian de 4 %).
+
+**Q : Pourquoi ne pas relancer NUTS pour chaque plan ?**
+R : 10 minutes par plan contre quelques secondes avec Laplace, qui reproduit
+NUTS à 4 % près sur le plan réel. Pour choisir définitivement un plan, je
+validerais le meilleur candidat par une vraie inférence sur données simulées.
+C'est le principe de l'optimisation bayésienne de plans d'expérience.
+
+**Q : Pourquoi Sobol et pas une étude un par un ?**
+R : Une étude un par un est locale et ignore les interactions. Ici, c'est
+important : k_coat n'a aucun effet de premier ordre sur le cerveau, mais un effet
+total non nul, uniquement par interaction avec m_brain. Une étude un par un au
+mauvais point aurait pu conclure que le coating ne compte pas.
+
+**Q : Pourquoi faire Sobol sur le prior et pas sur le posterior ?**
+R : Pour deux raisons. Sobol suppose des entrées indépendantes, or le posterior
+est fortement corrélé (r = -0.97). Et la question est : quelles propriétés,
+parmi toutes les particules plausibles, décident de la destination ? Pour la
+question « quelle incertitude restante compte le plus pour une prédiction », il
+faudrait des indices adaptés aux entrées corrélées (indices de Shapley, par
+exemple).
+
+**Q : Que signifie un S1 négatif ?**
+R : Le vrai S1 est positif ou nul. Un estimateur à échantillon fini peut donner
+une petite valeur négative quand l'indice vrai est proche de 0. Les intervalles
+bootstrap (par exemple [-0.012, +0.004] pour k_coat) le montrent.
+
+**Q : Que vous apprend la corrélation k_in_lung / k_out_fast ?**
+R : Pour les tissus d'échange, seul le coefficient de partage k_in / k_out est
+bien déterminé, car ils sont presque à l'équilibre avec le sang. C'est un
+résultat classique en pharmacocinétique. Le séparer demande des points pendant
+la phase de montée, c'est-à-dire avant 1 h.

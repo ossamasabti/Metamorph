@@ -144,17 +144,21 @@ def expand_rates(
     return k_in_bare, k_in_coat, k_out
 
 
-def initial_state(dose: float = DEFAULT_DOSE) -> np.ndarray:
-    """Return the initial state: an IV bolus of bare particles in blood.
+def initial_state(dose: float = DEFAULT_DOSE, coated_fraction: float = 0.0) -> np.ndarray:
+    """Return the initial state: an IV bolus in blood.
 
     Args:
         dose: Injected amount in %ID.
+        coated_fraction: Fraction of the dose injected already coated (0 = bare
+            particles, the default; 1 = particles pre-incubated in plasma). Used
+            in phase 4 to evaluate a hypothetical second experimental arm.
 
     Returns:
-        Array of shape ``(14,)`` with ``dose`` in ``B_b`` and zeros elsewhere.
+        Array of shape ``(14,)``, zero except for ``B_b`` and ``B_c``.
     """
     y0 = np.zeros(N_STATES)
-    y0[IDX_B_BARE] = dose
+    y0[IDX_B_BARE] = dose * (1.0 - coated_fraction)
+    y0[IDX_B_COAT] = dose * coated_fraction
     return y0
 
 
@@ -221,6 +225,7 @@ def simulate(
     atol: float = 1e-10,
     max_steps: int = 100_000,
     throw: bool = True,
+    coated_fraction: float = 0.0,
 ) -> jnp.ndarray:
     """Solve the ODE with diffrax and return the states at the requested times.
 
@@ -243,6 +248,7 @@ def simulate(
         throw: If True, raise on solver failure. If False, failed solves return
             non-finite values instead; used during MCMC, where an extreme
             parameter proposal must be rejected rather than crash the run.
+        coated_fraction: Fraction of the dose injected already coated.
 
     Returns:
         Array of shape ``(len(ts), 14)``.
@@ -255,7 +261,7 @@ def simulate(
         t0=0.0,
         t1=ts[-1],
         dt0=0.01,
-        y0=jnp.asarray(initial_state(dose)),
+        y0=jnp.asarray(initial_state(dose, coated_fraction)),
         args=params,
         saveat=diffrax.SaveAt(ts=ts),
         stepsize_controller=diffrax.PIDController(rtol=rtol, atol=atol),

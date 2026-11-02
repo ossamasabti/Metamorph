@@ -1,0 +1,77 @@
+Phase 4 summary
+
+1. Strongest posterior correlations (log parameters):
+   k_in_liver   - m_RES        r = -0.972
+   k_in_liver   - k_in_spleen  r = +0.971
+   k_in_spleen  - m_RES        r = -0.951
+   k_in_brain   - m_brain      r = -0.835
+   k_coat       - CL_renal     r = +0.794
+   k_in_kidney  - k_out_fast   r = +0.792
+   k_in_lung    - k_out_fast   r = +0.791
+   k_in_lung    - k_in_kidney  r = +0.743
+   (k_out_slow - CL_liver: r = +0.294)
+
+2. Posterior contraction 1 - var_post / var_prior (log scale); 1 = fully learned:
+   m_brain      prior sd 0.70  posterior sd 0.545  contraction 0.395
+   m_RES        prior sd 0.70  posterior sd 0.403  contraction 0.669
+   k_in_liver   prior sd 1.00  posterior sd 0.343  contraction 0.882
+   k_in_spleen  prior sd 1.00  posterior sd 0.340  contraction 0.884
+   k_in_brain   prior sd 1.00  posterior sd 0.182  contraction 0.967
+   k_coat       prior sd 1.00  posterior sd 0.181  contraction 0.967
+   k_out_slow   prior sd 1.00  posterior sd 0.143  contraction 0.979
+   k_out_fast   prior sd 1.00  posterior sd 0.130  contraction 0.983
+   k_in_kidney  prior sd 1.00  posterior sd 0.129  contraction 0.983
+   k_in_lung    prior sd 1.00  posterior sd 0.127  contraction 0.984
+   CL_liver     prior sd 1.00  posterior sd 0.110  contraction 0.988
+   CL_renal     prior sd 1.00  posterior sd 0.095  contraction 0.991
+
+3. Laplace (Fisher) approximation at the posterior mean, sigma = 0.196. Values: 90 % CI width factor exp(2 * 1.645 * sd).
+   NUTS column = actual posterior of the current design (validation of the approximation).
+   parameter       NUTS                    current                    + feces  + blood bare/coated split       + early tissue times           + pre-coated arm
+   k_coat          1.81                       1.84                       1.65                       1.12                       1.65                       1.78
+   CL_renal        1.37                       1.36                       1.35                       1.16                       1.33                       1.33
+   CL_liver        1.44                       1.44                       1.23                       1.41                       1.41                       1.28
+   k_in_lung       1.52                       1.49                       1.49                       1.42                       1.20                       1.33
+   k_in_liver      3.10                       3.46                       1.62                       1.60                       1.45                       2.80
+   k_in_spleen     3.06                       3.44                       1.68                       1.61                       1.44                       2.80
+   k_in_kidney     1.53                       1.49                       1.49                       1.43                       1.20                       1.33
+   k_in_brain      1.82                       1.78                       1.77                       1.71                       1.30                       1.48
+   m_RES           3.77                       4.27                       1.89                       1.84                       1.72                       2.89
+   m_brain         6.00                       6.10                       5.85                       5.67                       3.08                       1.64
+   k_out_fast      1.54                       1.49                       1.49                       1.41                       1.21                       1.34
+   k_out_slow      1.60                       1.62                       1.54                       1.50                       1.52                       1.31
+   Laplace vs NUTS sd on current design: median relative difference 0.04, max 0.10 (k_in_spleen)
+   Laplace correlations per design (k_in_liver, m_RES) / (k_in_brain, m_brain) / (k_out_slow, CL_liver):
+     current                    -0.98 / -0.85 / +0.37
+     + feces                    -0.88 / -0.87 / +0.24
+     + blood bare/coated split  -0.92 / -0.88 / +0.41
+     + early tissue times       -0.86 / -0.69 / +0.39
+     + pre-coated arm           -0.99 / -0.86 / +0.47
+
+4. Sobol indices of log10 amount at 24 h, inputs = prior (independent log-normal), N = 4096, 57344 model runs, bootstrap 90 % intervals.
+   brain: sum S1 = 0.920 (1 - sum S1 = share of variance from interactions)
+     k_in_brain   S1 +0.497 [+0.466, +0.529]   ST 0.500 [0.481, 0.519]   local elasticity +0.998
+     k_out_slow   S1 +0.169 [+0.144, +0.193]   ST 0.192 [0.181, 0.204]   local elasticity -0.498
+     m_brain      S1 +0.067 [+0.054, +0.080]   ST 0.086 [0.081, 0.091]   local elasticity +0.410
+     k_in_liver   S1 +0.061 [+0.045, +0.075]   ST 0.084 [0.078, 0.089]   local elasticity -0.405
+     CL_renal     S1 +0.062 [+0.049, +0.078]   ST 0.077 [0.072, 0.083]   local elasticity -0.307
+     m_RES        S1 +0.038 [+0.027, +0.050]   ST 0.056 [0.053, 0.060]   local elasticity -0.408
+     k_in_spleen  S1 +0.018 [+0.009, +0.027]   ST 0.033 [0.031, 0.036]   local elasticity -0.076
+     k_coat       S1 -0.005 [-0.012, +0.004]   ST 0.032 [0.029, 0.034]   local elasticity -0.222
+     CL_liver     S1 +0.008 [+0.002, +0.013]   ST 0.015 [0.013, 0.019]   local elasticity -0.077
+     k_out_fast   S1 +0.004 [-0.002, +0.009]   ST 0.015 [0.013, 0.016]   local elasticity -0.004
+     k_in_kidney  S1 +0.001 [-0.002, +0.003]   ST 0.004 [0.003, 0.005]   local elasticity +0.002
+     k_in_lung    S1 +0.000 [-0.003, +0.003]   ST 0.004 [0.003, 0.005]   local elasticity +0.003
+   liver: sum S1 = 0.876 (1 - sum S1 = share of variance from interactions)
+     CL_liver     S1 +0.573 [+0.540, +0.609]   ST 0.642 [0.616, 0.673]   local elasticity -0.985
+     k_in_liver   S1 +0.111 [+0.090, +0.131]   ST 0.175 [0.166, 0.185]   local elasticity +0.122
+     CL_renal     S1 +0.084 [+0.068, +0.099]   ST 0.101 [0.095, 0.107]   local elasticity -0.315
+     k_in_spleen  S1 +0.046 [+0.030, +0.061]   ST 0.083 [0.078, 0.088]   local elasticity -0.141
+     k_coat       S1 +0.039 [+0.027, +0.052]   ST 0.059 [0.055, 0.063]   local elasticity +0.272
+     k_out_slow   S1 +0.011 [-0.001, +0.021]   ST 0.045 [0.042, 0.049]   local elasticity +0.042
+     k_out_fast   S1 +0.007 [-0.003, +0.016]   ST 0.030 [0.027, 0.033]   local elasticity -0.032
+     m_RES        S1 +0.002 [-0.006, +0.009]   ST 0.017 [0.016, 0.019]   local elasticity -0.035
+     k_in_lung    S1 +0.002 [-0.003, +0.007]   ST 0.009 [0.008, 0.010]   local elasticity +0.020
+     k_in_kidney  S1 +0.001 [-0.003, +0.006]   ST 0.008 [0.007, 0.009]   local elasticity +0.013
+     k_in_brain   S1 -0.001 [-0.002, +0.000]   ST 0.000 [0.000, 0.001]   local elasticity -0.002
+     m_brain      S1 -0.000 [-0.001, +0.000]   ST 0.000 [0.000, 0.000]   local elasticity -0.002
