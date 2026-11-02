@@ -219,6 +219,8 @@ def simulate(
     dose: float = DEFAULT_DOSE,
     rtol: float = 1e-8,
     atol: float = 1e-10,
+    max_steps: int = 100_000,
+    throw: bool = True,
 ) -> jnp.ndarray:
     """Solve the ODE with diffrax and return the states at the requested times.
 
@@ -237,6 +239,10 @@ def simulate(
         dose: Injected amount in %ID.
         rtol: Relative tolerance of the step-size controller.
         atol: Absolute tolerance of the step-size controller.
+        max_steps: Maximum number of solver steps.
+        throw: If True, raise on solver failure. If False, failed solves return
+            non-finite values instead; used during MCMC, where an extreme
+            parameter proposal must be rejected rather than crash the run.
 
     Returns:
         Array of shape ``(len(ts), 14)``.
@@ -253,7 +259,8 @@ def simulate(
         args=params,
         saveat=diffrax.SaveAt(ts=ts),
         stepsize_controller=diffrax.PIDController(rtol=rtol, atol=atol),
-        max_steps=100_000,
+        max_steps=max_steps,
+        throw=throw,
     )
     return solution.ys
 

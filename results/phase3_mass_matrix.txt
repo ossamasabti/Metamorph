@@ -1,0 +1,7 @@
+NUTS mass matrix comparison (1 chain, 300 warmup + 300 draws, seed 0)
+
+mass matrix   wall (s)  leapfrog/iter  min ESS bulk  ESS per 1000 grad  divergences
+diagonal           303           58.3            97               5.55            0
+dense               82            8.6           201              78.15            0
+
+Wall times include JIT compilation and depend on the machine.
