@@ -400,6 +400,36 @@ def system_matrix(params: Mapping[str, float]) -> np.ndarray:
     return A
 
 
+def system_matrix_jax(params: Mapping[str, jnp.ndarray]) -> jnp.ndarray:
+    """JAX version of ``system_matrix`` (differentiable, vmappable).
+
+    Args:
+        params: Mapping from parameter names to JAX scalars.
+
+    Returns:
+        Array of shape ``(14, 14)`` such that dy/dt = A y.
+    """
+    k_in_bare, k_in_coat, k_out = expand_rates(params)
+    liver = jnp.zeros(N_TISSUES).at[LIVER].set(1.0)
+    tb = jnp.arange(SLICE_T_BARE.start, SLICE_T_BARE.stop)
+    tc = jnp.arange(SLICE_T_COAT.start, SLICE_T_COAT.stop)
+
+    A = jnp.zeros((N_STATES, N_STATES))
+    A = A.at[IDX_B_BARE, IDX_B_BARE].set(-(params["k_coat"] + k_in_bare.sum() + params["CL_renal"]))
+    A = A.at[IDX_B_COAT, IDX_B_BARE].set(params["k_coat"])
+    A = A.at[IDX_A_RENAL, IDX_B_BARE].set(params["CL_renal"])
+    A = A.at[IDX_B_COAT, IDX_B_COAT].set(-k_in_coat.sum())
+    A = A.at[tb, IDX_B_BARE].set(k_in_bare)
+    A = A.at[tc, IDX_B_COAT].set(k_in_coat)
+    A = A.at[IDX_B_BARE, tb].set(k_out)
+    A = A.at[IDX_B_COAT, tc].set(k_out)
+    A = A.at[tb, tb].set(-k_out - params["CL_liver"] * liver)
+    A = A.at[tc, tc].set(-k_out - params["CL_liver"] * liver)
+    A = A.at[IDX_A_HEPATIC, tb].set(params["CL_liver"] * liver)
+    A = A.at[IDX_A_HEPATIC, tc].set(params["CL_liver"] * liver)
+    return A
+
+
 def simulate_exact(
     params: Mapping[str, float], ts: np.ndarray, dose: float = DEFAULT_DOSE
 ) -> np.ndarray:

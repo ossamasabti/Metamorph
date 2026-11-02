@@ -1,0 +1,25 @@
+Phase 5 summary
+
+Threshold: brain(24 h) <= 0.2 %ID. Reference particle d = 5.0 nm, h = 1.0.
+Normalized distance: sqrt(u^2 + v^2), u = (d - 5.0) / 2 nm, v = log2(h / 1.0).
+Posterior draws: 1000 for optimization, 3000 held out for evaluation.
+Optimizer status: point True, margin True, robust True
+
+candidate                           d (nm)      h   dist  brain@mean  P(success)    90% interval of brain   truth
+original particle                     5.00   1.00   0.00       0.294       0.000           [0.256, 0.351]   0.286
+point estimate (optimal)              6.87   1.57   1.14       0.200       0.441           [0.164, 0.257]   0.192
+point estimate, d only                7.86   1.00   1.43       0.200       0.417           [0.174, 0.241]   0.197
+point estimate, margin x0.8           7.81   1.75   1.62       0.160       0.915           [0.129, 0.209]   0.153
+robust, P >= 0.9                      7.83   1.59   1.57       0.165       0.891           [0.135, 0.213]   0.159
+maximal h (h = 8), d unchanged        5.00   8.00   3.00       0.214       0.386           [0.132, 0.332]   0.186
+
+brain@mean = brain amount at the posterior-mean rates; truth = brain amount at the true
+rates (unknown in practice, shown because the data are synthetic).
+Robust counterfactual: P(success) = 0.900 on the optimization draws, 0.891 on the held-out draws.
+
+Changing h alone reaches the threshold at the posterior mean: no, not even at the upper bound h = 8
+Changing d alone reaches the threshold at the posterior mean: yes
+
+Grid search (41 x 41, optimization draws) best feasible points, for comparison with SLSQP:
+  point estimate: u, v = [1.1  0.45]
+  robust:         u, v = [1.4  0.75]

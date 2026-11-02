@@ -3,8 +3,8 @@
 Bayesian calibration and counterfactual design of a multi-compartment model for
 nanoparticle transport, where the particle changes state as it circulates.
 
-Status: work in progress (phases 1 to 4 of 6: forward model, synthetic data,
-Bayesian calibration, identifiability and sensitivity). The full README (motivation, results, references) is
+Status: work in progress (phases 1 to 5 of 6: forward model, synthetic data,
+Bayesian calibration, identifiability and sensitivity, counterfactual design). The full README (motivation, results, references) is
 written in phase 6.
 
 ## Installation
@@ -19,6 +19,7 @@ python scripts/phase2_synthetic_data.py
 python scripts/phase3_calibration.py     # about 10 min on a laptop CPU
 python scripts/phase3_mass_matrix.py     # optional, about 7 min
 python scripts/phase4_identifiability.py # about 10 min
+python scripts/phase5_counterfactual.py  # about 5 min
 ```
 
 ## Model
@@ -139,6 +140,56 @@ over the prior (57,344 model runs). Brain: k_in_brain (S1 0.50), k_out_slow
 (0.17), then m_brain, k_in_liver and CL_renal (about 0.06 each); k_coat acts
 only through interactions (S1 about 0, ST 0.03). Liver: CL_liver (S1 0.57),
 k_in_liver (0.11), CL_renal (0.08).
+
+## Counterfactual design (phase 5)
+
+Numbers from `results/phase5_summary.txt`.
+
+Two interpretable properties are mapped to rates (`src/metamorph/properties.py`),
+relative to the calibrated reference particle (d = 5 nm, h = 1):
+
+```
+CL_renal(d)   = CL_renal   * sigmoid((6 - d) / 0.7) / sigmoid((6 - 5) / 0.7)
+k_in_brain(d) = k_in_brain * exp(-(d - 5) / 4)
+k_coat(h)     = k_coat     * h
+```
+
+Additional assumptions:
+
+10. **Property maps.** Renal filtration has a soft size cutoff near 6 nm;
+    brain uptake decreases exponentially with size (decay length 4 nm); the
+    coating rate is proportional to the coating propensity h. The constants
+    are treated as known, and d and h affect nothing else (in reality size
+    also changes liver and spleen uptake, and surface chemistry changes the
+    coated-state multipliers).
+11. **Design distance.** A change is measured as sqrt(u^2 + v^2) with
+    u = (d - 5 nm) / 2 nm and v = log2(h). The optimal direction depends on
+    this choice of scales.
+
+**Question.** The reference particle holds 0.294 %ID in the brain at 24 h
+(posterior mean; 90 % interval [0.256, 0.351]). What is the smallest change of
+(d, h) that brings it below 0.2 %ID? The probability of success is evaluated on
+3000 posterior draws held out from the 1000 used for optimization.
+
+| Candidate | d (nm) | h | Distance | Brain at posterior mean (%ID) | P(success) |
+|---|---|---|---|---|---|
+| Original particle | 5.00 | 1.00 | 0 | 0.294 | 0.000 |
+| Point-estimate counterfactual | 6.87 | 1.57 | 1.14 | 0.200 | 0.441 |
+| Coating propensity only, h = 8 | 5.00 | 8.00 | 3.00 | 0.214 | 0.386 |
+| Robust counterfactual, P >= 0.9 | 7.83 | 1.59 | 1.57 | 0.165 | 0.891 |
+
+The point-estimate counterfactual meets the threshold at the posterior mean but
+succeeds for only 44 % of the plausible parameter values: it should not be
+trusted. Changing h alone cannot reach the threshold at the posterior mean,
+and its effect is very uncertain because it acts through the poorly identified
+m_brain. The robust counterfactual moves further, and mainly along d, which
+acts through well-identified parameters (CL_renal, k_in_brain): uncertainty
+changes the direction of the answer, not only its size. The robust design
+reaches P = 0.900 on the optimization draws and 0.891 on the held-out draws.
+
+Because the model is linear, these evaluations use the exact solution
+expm(A t) y0 (about 40 times faster than the adaptive solver; agreement with
+diffrax is tested).
 
 ## License
 

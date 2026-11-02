@@ -779,3 +779,208 @@ R : Pour les tissus d'échange, seul le coefficient de partage k_in / k_out est
 bien déterminé, car ils sont presque à l'équilibre avec le sang. C'est un
 résultat classique en pharmacocinétique. Le séparer demande des points pendant
 la phase de montée, c'est-à-dire avant 1 h.
+
+---
+
+## Phase 5 : design contrefactuel
+
+Tous les chiffres viennent de `results/phase5_summary.txt`
+(`scripts/phase5_counterfactual.py`).
+
+### 5.1 La question
+
+La particule de référence (diamètre d = 5 nm, propension au coating h = 1) a
+une quantité cérébrale à 24 h supérieure au seuil de 0.2 %ID : 0.294 %ID à la
+moyenne du posterior, IC à 90 % [0.256, 0.351]. Quel est le plus petit
+changement de (d, h) qui la fait passer sous le seuil ?
+
+Il s'agit d'un **contrefactuel interventionnel** : « que se serait-il passé si
+la particule avait eu d'autres propriétés ? ». On répond avec un modèle
+mécaniste calibré, en propageant l'incertitude du posterior, et non avec une
+corrélation dans des données.
+
+### 5.2 Lois propriétés vers taux (`properties.py`)
+
+```
+CL_renal(d)   = CL_renal   * sigmoid((6 - d) / 0.7) / sigmoid((6 - 5) / 0.7)
+k_in_brain(d) = k_in_brain * exp(-(d - 5) / 4)
+k_coat(h)     = k_coat     * h
+```
+
+Chaque loi vaut 1 à la particule de référence. On l'applique à **chaque tirage**
+du posterior : l'incertitude sur les taux de la particule de référence se
+propage directement à la nouvelle particule. Hypothèse forte, écrite dans le
+README : les constantes des lois (6 nm, 0.7 nm, 4 nm) sont supposées connues,
+et rien d'autre ne dépend de d ou de h.
+
+Effet de d sur le cerveau, avec deux mécanismes opposés :
+
+- d plus grand, moins de filtration rénale, la particule circule plus
+  longtemps : **plus** d'exposition du cerveau ;
+- d plus grand, moins de passage de la barrière : **moins** de captation
+  cérébrale.
+
+Pour h faible, la quantité cérébrale passe par un minimum vers 6 nm. Le
+problème n'est donc pas convexe, d'où la recherche sur grille avant
+l'optimisation locale.
+
+### 5.3 Distance normalisée
+
+u = (d - 5) / 2 nm et v = log2(h). Distance = sqrt(u^2 + v^2). Une unité
+correspond à 2 nm, ou à un doublement de h. **Le résultat dépend de ce choix** :
+si changer h coûtait moins cher en pratique, la solution irait davantage vers h.
+En vrai, il faudrait le fixer avec des chimistes (quels changements sont faciles
+à fabriquer).
+
+### 5.4 Méthode
+
+1. **Point estimé** : minimiser u^2 + v^2 sous la contrainte
+   cerveau(theta_moyen; d, h) <= 0.2. Contrainte écrite en log
+   (log 0.2 - log cerveau >= 0, mieux conditionnée). Recherche sur grille
+   41 x 41, puis SLSQP avec gradients JAX à partir du meilleur point de la
+   grille.
+2. **Probabilité de succès** : P = fraction des tirages du posterior pour
+   lesquels cerveau(theta_s; d, h) <= 0.2.
+3. **Version robuste** : minimiser la distance sous la contrainte
+   P(succès) >= 0.9. Celle-ci équivaut à : le quantile à 90 % de cerveau(theta_s;
+   d, h) sur les tirages est <= 0.2. Le quantile est continu et presque partout
+   dérivable, donc utilisable par SLSQP.
+4. **Séparation optimisation / évaluation** : on optimise sur 1000 tirages et on
+   évalue P sur 3000 autres. Sinon, l'optimiseur pourrait exploiter le bruit de
+   l'échantillon (surapprentissage) et la probabilité annoncée serait trop
+   optimiste.
+5. **Solution exacte expm** : le système est linéaire, donc
+   y(24 h) = expm(24 A) y0. C'est environ 40 fois plus rapide que diffrax
+   (160 microsecondes contre 6 ms par évaluation). La carte demande
+   41 x 41 x 1000 = 1.7 million d'évaluations. Un test vérifie l'accord avec
+   diffrax (rtol 1e-6).
+
+### 5.5 Résultats
+
+| Candidat | d (nm) | h | Distance | Cerveau à la moyenne | P(succès) | IC 90 % du cerveau | Vérité |
+|---|---|---|---|---|---|---|---|
+| Particule d'origine | 5.00 | 1.00 | 0 | 0.294 | 0.000 | [0.256, 0.351] | 0.286 |
+| Point estimé (optimal) | 6.87 | 1.57 | 1.14 | 0.200 | **0.441** | [0.164, 0.257] | 0.192 |
+| Point estimé, d seul | 7.86 | 1.00 | 1.43 | 0.200 | 0.417 | [0.174, 0.241] | 0.197 |
+| h maximal (h = 8), d inchangé | 5.00 | 8.00 | 3.00 | 0.214 | 0.386 | [0.132, 0.332] | 0.186 |
+| Point estimé, marge x0.8 | 7.81 | 1.75 | 1.62 | 0.160 | 0.915 | [0.129, 0.209] | 0.153 |
+| **Robuste, P >= 0.9** | 7.83 | 1.59 | 1.57 | 0.165 | **0.891** | [0.135, 0.213] | 0.159 |
+
+« Vérité » est la quantité calculée avec les vrais paramètres. On ne la connaît
+pas en pratique ; on peut l'afficher ici seulement parce que les données sont
+synthétiques.
+
+### 5.6 Interprétation
+
+**1. Le point estimé dit « réglé », mais P(succès) = 0.44.** La solution au
+point estimé se place exactement sur le seuil pour theta moyen. Par
+construction, elle échoue donc pour environ la moitié des valeurs plausibles des
+paramètres. Ce n'est pas une réponse fiable. (Ici, elle aurait fonctionné avec
+les vrais paramètres, 0.192 < 0.2, mais c'est de la chance : on ne peut pas le
+savoir à l'avance.)
+
+**Pourquoi P = 0.44 et pas 0.50 ?** On a mis la moyenne des paramètres dans un
+modèle non linéaire. La sortie obtenue n'est ni la moyenne ni la médiane des
+sorties (inégalité de Jensen). Ici, cerveau(theta_moyen) est un peu sous la
+médiane de la distribution prédictive, d'où P < 0.5.
+
+**2. Agir seulement sur h : un levier puissant mais incertain.** À la moyenne du
+posterior, même h = 8 ne suffit pas (0.214 > 0.2), et P = 0.39. Surtout, l'IC
+à 90 % est très large : [0.132, 0.332]. L'effet de h passe par m_brain, le
+paramètre le moins bien identifié (phase 4, contraction 0.40). Si m_brain est
+petit, coater plus vite protège beaucoup le cerveau ; s'il est proche de 1,
+presque pas. Les données ne permettent pas de trancher, donc on ne peut pas
+compter sur h.
+
+**3. La solution robuste.** Distance 1.57 (contre 1.14) : il faut aller plus loin,
+et **surtout dans la direction de d** (u passe de 0.94 à 1.42, alors que v
+reste presque le même : 0.65 contre 0.67). d agit via CL_renal et k_in_brain,
+deux paramètres bien déterminés. **L'incertitude ne change pas seulement la
+distance, elle change aussi la direction de la solution.**
+
+**4. Robuste contre « marge de sécurité ».** Viser 0.8 x seuil au point estimé
+donne ici P = 0.915, pour une distance de 1.62. La solution robuste fait un peu
+mieux (1.57, P = 0.89). Mais la marge de 20 % a été choisie au hasard. Avec 10 %,
+P aurait été plus faible ; avec 40 %, on aurait payé un changement inutilement
+grand. L'approche robuste règle directement ce qui compte (la probabilité de
+succès) et choisit la direction en fonction de l'incertitude. La marge ne le fait
+pas.
+
+**5. Vérification hors échantillon.** P = 0.900 sur les 1000 tirages
+d'optimisation, contre 0.891 sur les 3000 tirages réservés. L'écart-type
+d'échantillonnage d'une proportion de 0.9 sur 3000 tirages vaut environ 0.0055,
+donc l'écart (0.009) est d'environ 1.6 écart-type. C'est l'effet attendu
+de l'optimisation sur un échantillon fini, qui exploite un peu son bruit. Pour
+une garantie de 0.9 hors échantillon, il faudrait viser un peu plus haut
+(par exemple 0.92) ou optimiser sur davantage de tirages.
+
+**6. Retour sur ma prévision de la phase 4.** J'avais prévu que d serait bien
+plus efficace que h. C'est vrai en termes de fiabilité, mais pas en termes
+d'effet au point estimé : h a un effet moyen important, simplement très
+incertain. Les indices de Sobol (phase 4) faisaient varier k_coat d'un facteur
+environ 2.7 (prior), alors qu'ici h varie jusqu'à un facteur 8, avec theta fixé
+au posterior. Les deux analyses répondent à des questions différentes.
+
+### 5.7 Lecture de la figure `figures/phase5_success_map.png`
+
+- Couleur : P(succès) en chaque point (d, h).
+- Tiret orange : là où le point estimé atteint juste le seuil. Il suit presque
+  la courbe P = 0.5 (ligne grise).
+- Ligne noire : P = 0.9, frontière de la région robuste.
+- Pointillés : cercles de distance égale à celle des deux solutions.
+- Carré : point estimé. Étoile : robuste. Triangle : h = 8 seul.
+- La frontière P = 0.9 est presque verticale pour h grand : au-delà d'un
+  certain point, augmenter h n'apporte plus de garantie. C'est d qui fait le
+  travail.
+
+### 5.8 Questions probables en entretien
+
+**Q : Qu'est-ce qu'un contrefactuel ici ?**
+R : C'est la réponse à « qu'aurait-on observé si la particule avait eu un autre
+diamètre ou une autre chimie de surface ? ». On répond en intervenant sur les
+paramètres du modèle mécaniste calibré, à travers des lois explicites
+propriétés vers taux. On ne s'appuie pas sur des corrélations dans les
+données. C'est la logique de l'opérateur do() de Pearl, appliquée à un modèle
+causal structurel qui est ici le système d'EDO.
+
+**Q : Pourquoi ne pas faire confiance au point estimé ?**
+R : Parce que la solution est placée exactement sur le seuil pour un seul jeu
+de paramètres. Avec l'incertitude réelle, elle échoue dans 56 % des cas. Si on
+fabrique cette particule et qu'on la teste, on a moins d'une chance sur deux
+qu'elle satisfasse la contrainte.
+
+**Q : Votre P(succès) est-il une vraie probabilité ?**
+R : C'est une probabilité a posteriori, conditionnelle au modèle, aux priors et
+aux lois propriétés vers taux. Elle ne tient pas compte de l'erreur de
+structure du modèle, ni de l'incertitude sur les constantes des lois (6 nm,
+4 nm), que je suppose connues. En pratique, j'ajouterais des priors sur ces
+constantes, ce qui élargirait les distributions et rendrait la solution robuste
+plus coûteuse.
+
+**Q : Pourquoi la contrainte sur le quantile ?**
+R : P(cerveau <= seuil) >= 0.9 équivaut exactement à « quantile à 90 % de
+cerveau <= seuil ». Le quantile est une fonction continue de (d, h), alors que
+la proportion est une fonction en escalier, sans gradient utile. C'est la
+formulation classique des contraintes probabilistes (chance constraints).
+
+**Q : Pourquoi une recherche sur grille avant SLSQP ?**
+R : Le problème n'est pas convexe (effet non monotone de d) : un optimiseur local
+peut converger vers un mauvais minimum. La grille donne un bon point de départ
+global, et SLSQP affine la solution. Pour le point estimé, le meilleur point de
+la grille est (u, v) = (1.10, 0.45), à la distance 1.19 ; SLSQP trouve
+(0.94, 0.65), à la distance 1.14, un peu plus loin le long de la même frontière.
+
+**Q : Pourquoi exp(A t) et pas diffrax ici ?**
+R : Pour la vitesse : 1.7 million d'évaluations, environ 40 fois plus rapides,
+et un résultat exact pour un système linéaire. C'est vérifié par un test. Pour
+un modèle non linéaire, je construirais un émulateur, par exemple un processus
+gaussien entraîné sur quelques centaines de simulations, en propageant son
+incertitude dans P(succès).
+
+**Q : Que changeriez-vous avec de vraies données ?**
+R : Trois choses. (1) Calibrer les lois propriétés vers taux sur plusieurs
+particules de tailles et de chimies différentes, au lieu de les supposer.
+(2) Faire l'expérience du bras pré-coaté (phase 4), qui fixerait m_brain et
+rendrait h utilisable comme levier. (3) Tester la particule robuste in vitro
+(tissue-on-chip), puis mettre à jour le posterior avec ce résultat : c'est une
+boucle d'apprentissage actif.
