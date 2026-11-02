@@ -1,0 +1,70 @@
+{
+  "description": "True values used to generate data/synthetic_data.csv",
+  "units": {
+    "rates": "1/h",
+    "amounts": "%ID",
+    "time": "h"
+  },
+  "parameters": {
+    "k_coat": 1.5,
+    "CL_renal": 0.8,
+    "CL_liver": 0.05,
+    "k_in_lung": 0.3,
+    "k_in_liver": 0.4,
+    "k_in_spleen": 0.1,
+    "k_in_kidney": 0.2,
+    "k_in_brain": 0.01,
+    "m_RES": 3.0,
+    "m_brain": 0.3,
+    "k_out_fast": 0.5,
+    "k_out_slow": 0.03
+  },
+  "sigma_log": 0.2,
+  "seed": 20261102,
+  "observation_times_h": {
+    "blood": [
+      0.08333333333333333,
+      0.25,
+      0.5,
+      1.0,
+      4.0,
+      8.0,
+      24.0
+    ],
+    "urine": [
+      0.08333333333333333,
+      0.25,
+      0.5,
+      1.0,
+      4.0,
+      8.0,
+      24.0
+    ],
+    "lung": [
+      1.0,
+      4.0,
+      24.0
+    ],
+    "liver": [
+      1.0,
+      4.0,
+      24.0
+    ],
+    "spleen": [
+      1.0,
+      4.0,
+      24.0
+    ],
+    "kidney": [
+      1.0,
+      4.0,
+      24.0
+    ],
+    "brain": [
+      1.0,
+      4.0,
+      24.0
+    ]
+  },
+  "n_replicates": 3
+}

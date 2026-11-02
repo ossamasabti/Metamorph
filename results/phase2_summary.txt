@@ -1,0 +1,30 @@
+Phase 2 summary
+
+Rows: 87  (seed 20261102, sigma 0.2, 3 replicates)
+  blood  :  21 rows at t = 0.0833, 0.25, 0.5, 1, 4, 8, 24 h
+  lung   :   9 rows at t = 1, 4, 24 h
+  liver  :   9 rows at t = 1, 4, 24 h
+  spleen :   9 rows at t = 1, 4, 24 h
+  kidney :   9 rows at t = 1, 4, 24 h
+  brain  :   9 rows at t = 1, 4, 24 h
+  urine  :  21 rows at t = 0.0833, 0.25, 0.5, 1, 4, 8, 24 h
+
+Empirical std of log residuals: 0.1955 (true sigma 0.2)
+Empirical mean of log residuals: +0.0096
+
+Local log-sensitivities d log(y) / d log(theta) at sampling times:
+  t (h)   blood:k_coat  blood:CL_renal  urine:k_coat  urine:CL_renal
+   0.083        -0.001          -0.062        -0.059          +0.968
+   0.250        -0.007          -0.166        -0.161          +0.914
+   0.500        -0.021          -0.283        -0.277          +0.852
+   1.000        -0.046          -0.405        -0.399          +0.787
+   4.000        +0.012          -0.413        -0.511          +0.728
+   8.000        +0.106          -0.401        -0.540          +0.712
+  24.000        +0.234          -0.366        -0.567          +0.697
+
+Correlation over sampling times between the k_coat and CL_renal sensitivity
+columns (values near -1 or +1 mean the two effects look alike):
+  all 7 times         : r = -0.740
+  only 1, 4, 8, 24 h  : r = -0.945
+
+Urine at t_end: d log / d log k_coat = -0.567, d log / d log CL_renal = +0.697
