@@ -7,7 +7,7 @@ Phase 3 summary
    prior 90 % interval of urine at 24 h: [3.82, 71.1] %ID
 
 2. NUTS
-   4 chains x (1000 warmup + 1000 draws), dense mass matrix, target_accept 0.8, wall time 609 s
+   4 chains x (1000 warmup + 1000 draws), dense mass matrix, target_accept 0.8, wall time 526 s
    divergent transitions after warmup: 0 / 4000
    mean leapfrog steps per iteration: 7.8
    max R-hat: 1.0000

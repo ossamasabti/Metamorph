@@ -984,3 +984,107 @@ particules de tailles et de chimies différentes, au lieu de les supposer.
 rendrait h utilisable comme levier. (3) Tester la particule robuste in vitro
 (tissue-on-chip), puis mettre à jour le posterior avec ce résultat : c'est une
 boucle d'apprentissage actif.
+
+---
+
+## Phase 6 : packaging, reproductibilité et présentation
+
+### 6.1 Ce qui rend le projet reproductible
+
+| Élément | Rôle |
+|---|---|
+| `pyproject.toml` en *src layout* | Le code est un vrai paquet installable (`pip install -e .`). Le dossier `src/` évite d'importer par erreur le code local au lieu du paquet installé, ce qui garantit que les tests vérifient ce qui est réellement installé. |
+| `pip install -e .` (mode éditable) | Le paquet pointe vers les sources : une modification du code est visible sans réinstaller. |
+| `requirements-lock.txt` | Versions exactes utilisées (jax 0.10.2, diffrax 0.7.2, numpyro 0.22.0, etc.). `pyproject.toml` donne des versions minimales (souples), le fichier lock les versions exactes (reproductibles). |
+| Graines fixées | Données (graine 20261102), NUTS (graine 0), tirages, Sobol, séparation des tirages : relancer donne les mêmes chiffres. |
+| `scripts/run_all.py` | Une seule commande refait toutes les figures et tous les chiffres. |
+| Un fichier `results/*.txt` par phase | Chaque chiffre du README vient d'un fichier écrit par un script : rien n'est recopié à la main. |
+| 32 tests (`pytest`) | Accord entre solveurs, conservation de la masse, estimateurs de Sobol sur des cas analytiques, lois des propriétés, accord expm / diffrax. |
+| `notebooks/demo.ipynb` | Une visite guidée exécutable de bout en bout, qui réutilise le posterior déjà calculé. |
+
+### 6.2 Résumé du projet en 2 minutes (pour l'entretien)
+
+« Une nanoparticule injectée change d'identité : des protéines du plasma
+forment une couronne, et la particule coatée ne va pas aux mêmes endroits que
+la particule nue. J'ai construit un modèle à compartiments (sang et cinq
+organes) où chaque particule existe dans deux états, avec des EDO résolues en
+JAX/diffrax et vérifiées contre une solution exacte. J'ai simulé une étude de
+biodistribution réaliste, avec peu de points et du bruit, puis calibré les 12
+paramètres avec NumPyro et NUTS : les diagnostics sont propres, et toutes les
+valeurs vraies sont dans les intervalles de crédibilité à 90 %. L'analyse
+d'identifiabilité montre que l'effet de la couronne sur le cerveau est mal
+déterminé, parce qu'on n'observe que des totaux. Avec l'information de Fisher,
+je montre qu'un second groupe recevant des particules pré-coatées le fixerait.
+Enfin, je réponds à une question de conception : quel plus petit changement de
+taille et de chimie de surface réduit l'accumulation cérébrale ? La solution
+au point estimé ne marche que dans 44 % des cas plausibles. La solution robuste
+atteint 89 % et change surtout la taille, car c'est le levier dont l'effet est
+bien connu. »
+
+### 6.3 Lien avec le projet SYNERGIE
+
+| Demande du poste | Ce que Metamorph montre |
+|---|---|
+| Modèles par EDO / systèmes dynamiques | Modèle à 14 états, analyse des valeurs propres (raideur), trois solveurs concordants, conservation de la masse |
+| Inférence bayésienne dans un langage probabiliste | NumPyro, NUTS, checks prédictifs a priori et a posteriori, R-hat, ESS, divergences, diagnostic de la géométrie (matrice de masse dense) |
+| Python scientifique solide | Paquet installable, typé, documenté, testé, reproductible |
+| Optimisation | SLSQP sous contraintes, contraintes probabilistes (chance constraints), recherche globale puis locale |
+| Raisonnement contrefactuel | Intervention sur des propriétés via un modèle mécaniste, avec propagation de l'incertitude |
+| Modèles de substitution (surrogates) | Solution exacte expm comme « surrogate » exact ; un émulateur par processus gaussien est proposé pour le cas non linéaire |
+| Transport dans les tissus humains | Version miniature : compartiments, changement d'état, barrières (cerveau), clairance |
+
+### 6.4 Questions probables en entretien
+
+**Q : Qu'est-ce que vous feriez différemment avec plus de temps ?**
+R : Trois choses. (1) Tester le modèle sur des données générées par un modèle
+plus riche (par exemple avec captation saturable), pour voir comment
+l'inférence réagit à une erreur de structure : ici le modèle ajusté est le
+vrai, ce qui est optimiste. (2) Mettre des priors sur les constantes des lois
+propriétés vers taux. (3) Faire un vrai plan d'expérience bayésien, avec le
+gain d'information attendu comme critère.
+
+**Q : Quelle est la principale faiblesse de ce travail ?**
+R : Les données sont synthétiques, générées par la même structure de modèle.
+La méthode est validée (on retrouve les vrais paramètres), mais pas le modèle
+lui-même. C'est exactement ce que le doctorat apporterait : des données réelles
+(tissue-on-chip) et une structure physiologique (PBPK).
+
+**Q : Comment passeriez-vous à un modèle PBPK avec de vraies données ?**
+R : Les compartiments deviendraient des volumes d'organes reliés par des débits
+sanguins. Les paramètres deviendraient des perméabilités et des coefficients de
+partage, avec des priors issus de la physiologie. Le modèle grossit : je
+garderais NUTS si possible, avec une attention particulière à
+l'identifiabilité, et j'utiliserais un émulateur pour l'optimisation. Un
+niveau hiérarchique permettrait de tenir compte de la variabilité entre
+individus ou entre puces.
+
+**Q : Pourquoi JAX ?**
+R : Pour la différentiation automatique à travers le solveur d'EDO (nécessaire
+pour NUTS et pour l'information de Fisher), la vectorisation (vmap) pour
+simuler des milliers de jeux de paramètres d'un coup, et la compilation (jit).
+Un même code sert à la simulation, à l'inférence et à l'optimisation.
+
+**Q : Combien de temps tout cela prend-il à calculer ?**
+R : 16.6 minutes sur un ordinateur portable pour tout refaire, dont 9.4 pour
+NUTS, 4.3 pour l'identifiabilité et la sensibilité, et 2.3 pour le
+contrefactuel (`results/run_all_timings.txt`, écrit par `scripts/run_all.py`).
+
+**Q : Le code est-il fiable ?**
+R : 32 tests automatiques : deux implémentations indépendantes du modèle, une
+solution exacte, la conservation de la masse pour des paramètres aléatoires,
+les estimateurs de Sobol vérifiés sur des fonctions dont les indices sont
+connus, et l'accord entre la solution exacte et diffrax. De plus, tout le
+pipeline a été relancé de bout en bout avec `run_all.py` : les figures, les
+données et tous les chiffres scientifiques sont identiques à ceux commités
+(les tirages du posterior sont identiques au bit près). Seuls les temps de
+calcul changent.
+
+**Q : Le notebook donne une solution robuste légèrement différente du script
+de la phase 5. Pourquoi ?**
+R : Le notebook part d'une grille plus grossière (21 x 21 au lieu de 41 x 41)
+pour aller vite. Il trouve (d, h) = (7.96 nm, 1.45) au lieu de (7.83 nm, 1.59),
+à la même distance (1.57), avec P = 0.892 contre 0.891. La frontière robuste est
+presque plate autour de l'optimum : plusieurs points voisins sont
+équivalents. La conclusion ne change pas : la solution robuste va surtout le
+long de d. C'est aussi une leçon : quand l'optimum est plat, il faut rapporter
+la région de solutions équivalentes, pas un point avec une fausse précision.

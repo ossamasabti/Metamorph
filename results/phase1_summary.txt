@@ -15,7 +15,7 @@ Max |sum - 100| over 481 times, SciPy:   7.11e-14
 Max abs error vs exact, diffrax: 5.30e-08 %ID
 Max abs error vs exact, SciPy:   7.08e-10 %ID
 Max abs difference diffrax vs SciPy: 5.30e-08 %ID
-Wall time (481 outputs): diffrax 5.6 ms (after JIT), SciPy 59.5 ms
+Wall time (481 outputs): diffrax 9.4 ms (after JIT), SciPy 87.8 ms
 
 Decay rates of the system (-eigenvalues of A, 1/h), excluding the two zero
 eigenvalues of the cumulative states:

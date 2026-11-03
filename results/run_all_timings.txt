@@ -1,0 +1,8 @@
+Wall times of the last run of scripts/run_all.py (machine dependent)
+
+  phase1_forward.py                 0.3 min
+  phase2_synthetic_data.py          0.3 min
+  phase3_calibration.py             9.4 min
+  phase4_identifiability.py         4.3 min
+  phase5_counterfactual.py          2.3 min
+  total                            16.6 min
